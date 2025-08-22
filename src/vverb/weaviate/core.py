@@ -71,7 +71,9 @@ class WeaviateAdapter(BaseAdapter):
             )
         await client.connect()
         adaptor = cls(client, **cfg)
-        await adaptor.client.is_ready() # Ensure the client is ready
+        is_ready = await adaptor.client.is_ready()    # Ensure the client is ready
+        if not is_ready:
+            raise RuntimeError("Weaviate client is not ready after connect()")
         return adaptor
 
     def capabilities(self):

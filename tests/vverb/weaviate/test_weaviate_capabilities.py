@@ -12,5 +12,5 @@ async def test_connection_smoke(weaviate_client):
     """
     host, port = weaviate_client
     # Connect to Weaviate using the provided host and port
-    client = await connect(http_host=host, http_port=int(port))
+    client = await connect(http_host=host, http_port=int(port), http_secure=False)
     assert client is not None

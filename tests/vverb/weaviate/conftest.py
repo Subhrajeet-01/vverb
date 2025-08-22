@@ -1,5 +1,6 @@
 # conftest.py for Weaviate adapter tests
 from __future__ import annotations
+from vverb._log import logger
 
 import asyncio
 import os
@@ -7,6 +8,7 @@ import pathlib
 import subprocess
 import time
 from typing import Any, Generator
+import httpx
 
 import pytest
 import pytest_asyncio
@@ -32,9 +34,26 @@ def _run_cmd(*args: str):
     subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # ───────────────────────────────────────────────────────────────
-# 1. Session-wide Weaviate container via docker-compose
+# Helper to poll Weaviate health endpoint until ready
 # ───────────────────────────────────────────────────────────────
 
+def wait_for_weaviate(host: str, port: str, timeout: int = 60):
+    """Poll Weaviate's health endpoint until ready or timeout."""
+    url = f"http://{host}:{port}/v1/.well-known/ready"
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            response = httpx.get(url, timeout=2)
+            if response.status_code == 200:
+                return True
+        except httpx.RequestError as e:
+            logger.warning(f"Weaviate health check failed: {e}")
+        time.sleep(2)
+    raise RuntimeError(f"Weaviate did not become ready at {url} within {timeout} seconds.")
+
+# ───────────────────────────────────────────────────────────────
+# 1. Session-wide Weaviate container via docker-compose
+# ───────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="session")
 def weaviate_config() -> Generator[tuple[str, str], Any, None]:
@@ -44,17 +63,17 @@ def weaviate_config() -> Generator[tuple[str, str], Any, None]:
     - Tears it down when tests complete
     """
     # Ensure no stale container
-    _run_cmd("docker", "compose" ,"-f" , str(DOCKER_COMPOSE_PATH), "down")
+    _run_cmd("docker", "compose", "-f", str(DOCKER_COMPOSE_PATH), "down")
 
     # Launch fresh container
     _run_cmd("docker", "compose", "-f", str(DOCKER_COMPOSE_PATH), "up", "-d")
 
-    # Wait for Weaviate to be ready
-    time.sleep(15)  # Increase if needed for slow startup
-
     # Build connection info
     host = WEAVIATE_HOST
     port = WEAVIATE_PORT
+
+    # Wait for Weaviate to be ready
+    wait_for_weaviate(host, port)   # Uses default timeout of 60s
 
     yield host, port
 

@@ -1,23 +1,29 @@
----
+version: "3.8"  
+
 services:
-  weaviate_anon:
-    command:
-    - --host
-    - 0.0.0.0
-    - --port
-    - '8080'
-    - --scheme
-    - http
-    image: cr.weaviate.io/semitechnologies/weaviate:1.32.0
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.32.1  
     ports:
-    - 8000:8080
-    - 50051:50051
-    restart: on-failure:0
+      - "8000:8080"      # Map host port 8000 to container port 8080 (HTTP API)
+      - "50051:50051"    
     environment:
-      QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-      ENABLE_API_BASED_MODULES: 'true'
-      BACKUP_FILESYSTEM_PATH: '/var/lib/weaviate/backups'
-      CLUSTER_HOSTNAME: 'node1'
-...
+      QUERY_DEFAULTS_LIMIT: 25                       
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true" 
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate        
+      ENABLE_API_BASED_MODULES: "true"                
+      CLUSTER_HOSTNAME: node1                         
+    volumes:
+      - weaviate_data:/var/lib/weaviate              
+    restart: unless-stopped                           
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/v1/.well-known/ready"] 
+      interval: 10s                                   
+      timeout: 5s                                    
+      retries: 5                                      
+    networks:
+      - vverb          
+volumes:
+  weaviate_data:                                     
+
+networks:
+  vverb:
